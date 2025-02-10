@@ -1,5 +1,6 @@
 package com.lzf.quickcheck
 
+
 import android.Manifest
 
 import android.os.Bundle
@@ -10,11 +11,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.*
+import androidx.navigation.navDeepLink
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberPermissionState
 import com.lzf.quickcheck.screens.*  // 引入页面
 import com.lzf.quickcheck.screens.home.*
+import com.lzf.quickcheck.screens.functions.*
 import kotlinx.coroutines.delay
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,6 +30,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+fun String.encode() = URLEncoder.encode(this, StandardCharsets.UTF_8.toString()) ?: ""
+
+fun String.decode() = URLDecoder.decode(this, StandardCharsets.UTF_8.toString()) ?: ""
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -50,6 +59,15 @@ fun MyApp() {
         internetPermissionState.launchPermissionRequest()
     }
 
+    val screens: List<Pair<String, @Composable () -> Unit>> = listOf(
+        "home" to { HomeScreen(navController) },
+        "function" to { FunctionScreen(navController) },
+        "mine" to { MineScreen() },
+        "camera" to { CameraScreen(navController) },
+        "todo" to { ToDoScreen(navController) },
+        "pictures" to { Pictures(navController) }
+    )
+
     if (showSplash) {
         SplashScreen() // 显示 Splash 屏幕
     } else {
@@ -61,12 +79,10 @@ fun MyApp() {
                 startDestination = "home", // 启动时默认显示 "home" 页面
                 modifier = Modifier.padding(paddingValues) // 设置内容的 padding
             ) {
-                composable("home") { HomeScreen(navController) } // 定义 "home" 页面
-                composable("function") { FunctionScreen() } // 定义 "function" 页面
-                composable("mine") { MineScreen() } // 定义 "mine" 页面
-                composable("camera") { CameraScreen(navController) } // 添加 "camera" 页面，但不在底部导航栏中
-                composable("todo") { ToDoScreen(navController) } // 添加 "camera" 页面，但不在底部导航栏中
 
+                screens.forEach { (route, screen) ->
+                    composable(route) { screen() }
+                }
             }
         }
     }

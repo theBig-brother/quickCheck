@@ -1,5 +1,6 @@
 package com.lzf.quickcheck.screens.home
 
+import Yolo // 引入Yolo类，用于图像处理
 import android.Manifest // 引入权限声明
 import android.app.VoiceInteractor
 import android.content.ContentValues // 引入用于存储媒体信息的ContentValues
@@ -29,9 +30,9 @@ import androidx.compose.ui.viewinterop.AndroidView // 引入AndroidView，集成
 import androidx.core.content.ContextCompat // 引入ContextCompat类，提供兼容性支持
 import androidx.lifecycle.LifecycleOwner // 引入LifecycleOwner接口，管理组件生命周期
 import androidx.navigation.NavController // 引入NavController，管理页面导航
-import com.lzf.quickcheck.screens.home.Yolo // 引入Yolo类，用于图像处理
 import kotlinx.coroutines.* // 引入协程库，进行异步处理
 import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
@@ -182,10 +183,13 @@ private fun takePhoto(
 // 处理并上传图像
 private fun processAndUploadImage(uri: Uri, context: Context) {
     val bitmap = uriToBitmap(uri, context) ?: return // 获取Bitmap
-    val processedBitmap = Yolo().processImage(bitmap) // 使用YOLO处理图像
+    // 使用YOLO处理图像
+    val result = Yolo().processImage(bitmap)
+    val processedBitmap = result.first
+    val hasPerson = result.second
 
     saveImageToGallery(processedBitmap, context) // 保存处理后的图片
-    uploadToServer(uri, context) // 上传图片到服务器
+//    uploadToServer(uri, context) // 上传图片到服务器
 }
 
 // 读取 Bitmap
@@ -239,7 +243,7 @@ private fun uploadToServer(uri: Uri, context: Context) {
     val byteArray = byteArrayOutputStream.toByteArray()
 
     // 创建 RequestBody 对象，用于向服务器发送 JPEG 格式的图片数据
-    val requestBody = RequestBody.create(MediaType.parse("image/jpeg"), byteArray)
+    val requestBody = RequestBody.create("image/jpeg".toMediaTypeOrNull(), byteArray)
 
     // 创建 MultipartBody.Part 用于上传图片
     val part = MultipartBody.Part.createFormData("file", "image.jpg", requestBody)
