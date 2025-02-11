@@ -6,6 +6,7 @@ import android.app.VoiceInteractor
 import android.content.ContentValues // 引入用于存储媒体信息的ContentValues
 import android.content.Context // 引入Context类，用于获取应用上下文
 import android.graphics.Bitmap // 引入Bitmap类，表示图片数据
+import android.graphics.BitmapFactory
 import android.net.Uri // 引入Uri类，表示图片文件的URI
 import android.os.Environment // 引入Environment类，获取设备的公共存储路径
 import android.provider.MediaStore // 引入MediaStore类，用于访问媒体存储
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.* // 引入布局类，提供行、列
 import androidx.compose.material.* // 引入Jetpack Compose的Material UI组件
 import androidx.compose.material.icons.Icons // 引入Material Icons
 import androidx.compose.material.icons.filled.CameraAlt // 引入相机图标
+import androidx.compose.material.icons.filled.CameraRear
 import androidx.compose.material.icons.filled.Videocam // 引入摄像机图标
 import androidx.compose.material.icons.rounded.ShoppingCart // 引入购物车图标
 import androidx.compose.material3.FloatingActionButton // 引入浮动按钮
@@ -37,6 +39,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
+import okio.IOException
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -44,6 +47,8 @@ import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.io.OutputStream // 引入输出流，用于保存文件
 import java.text.SimpleDateFormat // 引入日期格式化类
 import java.util.* // 引入日期和时间相关类
@@ -54,12 +59,13 @@ import java.util.concurrent.Executors // 引入Executors类，用于创建线程
 fun CameraScreen(navController: NavController) { // Composable函数，表示一个界面
     val context = LocalContext.current // 获取当前的上下文
     val lifecycleOwner = LocalContext.current as LifecycleOwner // 获取生命周期拥有者
-    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) } // 初始化CameraX提供者
+    val cameraProviderFuture =
+        remember { ProcessCameraProvider.getInstance(context) } // 初始化CameraX提供者
     val executor = remember { Executors.newSingleThreadExecutor() } // 创建单线程执行器
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) } // 定义ImageCapture对象用于拍照
     var isAutoCapture by remember { mutableStateOf(false) } // 自动拍照开关
     val coroutineScope = rememberCoroutineScope() // 创建协程作用域
-
+    var isFrontCamera by remember { mutableStateOf(true) } // Track the selected camera
     // 使用 DisposableEffect 释放资源
     DisposableEffect(lifecycleOwner) {
         onDispose {
@@ -75,8 +81,10 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
             delay(1000)  // 每秒拍摄一张
         }
     }
-
-    Box(modifier = Modifier.fillMaxSize()) { // 创建一个填满屏幕的容器
+//    var cameraSelector by remember { mutableStateOf(if (isFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        val cameraSelectorState = remember { mutableStateOf(if (isFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA) }
+// 创建一个填满屏幕的容器
         AndroidView(
             modifier = Modifier.fillMaxSize(), // 填满父容器
             factory = { ctx ->
@@ -89,17 +97,31 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
                 imageCapture = ImageCapture.Builder() // 初始化ImageCapture配置
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY) // 设置拍照模式
                     .build()
+                // 根据isFrontCamera选择摄像头
+               val cameraSelector =cameraSelectorState.value
 
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA // 使用后置摄像头
                 cameraProvider.unbindAll() // 解绑所有已绑定的用例
                 cameraProvider.bindToLifecycle( // 绑定生命周期
                     lifecycleOwner, cameraSelector, preview, imageCapture
                 )
 
                 previewView // 返回预览视图
+            },
+                    update = { // This block is triggered when `isFrontCamera` changes
+                // Update the camera selector based on isFrontCamera
+                        Log.e("switch", cameraSelectorState.value.toString())
+                cameraSelectorState.value = if (isFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
             }
         )
-
+// 监听isFrontCamera变化并刷新摄像头
+//        LaunchedEffect(isFrontCamera) {
+//            // 根据isFrontCamera改变时刷新摄像头
+//            cameraSelector = if (isFrontCamera) {
+//                CameraSelector.DEFAULT_FRONT_CAMERA
+//            } else {
+//                CameraSelector.DEFAULT_BACK_CAMERA
+//            }
+//        }
         // 拍照按钮
         Column(
             modifier = Modifier
@@ -132,13 +154,35 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
                 // 手动拍照按钮
                 FloatingActionButton(
                     onClick = {
-                        Toast.makeText(context, "Taking photo...", Toast.LENGTH_SHORT).show() // 弹出拍照提示
+                        Toast.makeText(context, "Taking photo...", Toast.LENGTH_SHORT)
+                            .show() // 弹出拍照提示
                         takePhoto(imageCapture, context, executor) // 调用拍照函数
                     }
                 ) {
                     Icon(
                         imageVector = Icons.Filled.CameraAlt, // 显示相机图标
                         contentDescription = "Capture" // 图标的描述
+                    )
+                }
+
+                // 切换摄像头按钮
+                FloatingActionButton(
+                    onClick = {
+                        isFrontCamera = !isFrontCamera
+//                        cameraSelector = if (isFrontCamera) {
+//                            CameraSelector.DEFAULT_FRONT_CAMERA
+//                        } else {
+//                            CameraSelector.DEFAULT_BACK_CAMERA
+//                        }
+                        Toast.makeText(context, "Switch photo...", Toast.LENGTH_SHORT)
+                            .show() // 弹出拍照提示
+                        Log.e("cacaca",isFrontCamera.toString())
+//                        Log.e("whichcacaca",cameraSelector.toString())
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.CameraRear, // 显示相机图标
+                        contentDescription = "Switch" // 图标的描述
                     )
                 }
             }
@@ -157,7 +201,10 @@ private fun takePhoto(
         context.contentResolver, // 获取内容解析器
         MediaStore.Images.Media.EXTERNAL_CONTENT_URI, // 存储路径
         ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "IMG_${System.currentTimeMillis()}.jpg") // 设置文件名
+            put(
+                MediaStore.MediaColumns.DISPLAY_NAME,
+                "IMG_${System.currentTimeMillis()}.jpg"
+            ) // 设置文件名
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg") // 设置文件类型
             put(
                 MediaStore.MediaColumns.RELATIVE_PATH,
@@ -170,7 +217,18 @@ private fun takePhoto(
     imageCapture?.takePicture(outputOptions, executor, object : ImageCapture.OnImageSavedCallback {
         override fun onImageSaved(output: ImageCapture.OutputFileResults) {
             output.savedUri?.let { uri -> // 获取保存的图片URI
-                processAndUploadImage(uri, context) // 处理并上传图片
+//                processAndUploadImage(uri, context) // 处理并上传图片
+                // 将图片转换为 Bitmap
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream?.close() // 关闭流
+                // 处理图片
+                val result = Yolo(context).processImage(bitmap)
+                // 获取处理后的图片
+                val processedBitmap = result.first
+                // 直接保存处理后的图片到图库
+                // 注意：此时我们只保存处理后的图像，而不再保存原始图像
+                saveImageToGallery(processedBitmap, context,uri)
             }
         }
 
@@ -179,18 +237,33 @@ private fun takePhoto(
         }
     })
 }
+fun saveProcessedImage(bitmap: Bitmap, originalUri: Uri) {
+    try {
+        // 获取原图片的文件路径
+        val file = File(originalUri.path)
 
-// 处理并上传图像
-private fun processAndUploadImage(uri: Uri, context: Context) {
-    val bitmap = uriToBitmap(uri, context) ?: return // 获取Bitmap
-    // 使用YOLO处理图像
-    val result = Yolo().processImage(bitmap)
-    val processedBitmap = result.first
-    val hasPerson = result.second
+        // 如果文件已经存在，先删除它
+        if (file.exists()) {
+            file.delete()
+        }
 
-    saveImageToGallery(processedBitmap, context) // 保存处理后的图片
-//    uploadToServer(uri, context) // 上传图片到服务器
+        // 创建一个新的文件并使用 FileOutputStream 写入处理后的图像
+        val outputStream = FileOutputStream(file)
+
+        // 压缩并保存图片
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+
+        // 刷新并关闭输出流
+        outputStream.flush()
+        outputStream.close()
+
+        Log.d("CameraScreen", "Processed image saved successfully, overwriting original image.")
+    } catch (e: IOException) {
+        // 处理保存失败的异常
+        Log.e("CameraScreen", "Failed to save processed image: ${e.message}")
+    }
 }
+
 
 // 读取 Bitmap
 private fun uriToBitmap(uri: Uri, context: Context): Bitmap? {
@@ -205,27 +278,61 @@ private fun uriToBitmap(uri: Uri, context: Context): Bitmap? {
 }
 
 // 保存到本地相册
-private fun saveImageToGallery(bitmap: Bitmap, context: Context) {
+private fun saveImageToGallery(bitmap: Bitmap, context: Context,originalUri: Uri) {
+    val fileUri = originalUri // 原始的文件 Uri
+
+// 如果Uri不为null，尝试删除
+    val contentResolver = context.contentResolver
+    val rowsDeleted = contentResolver.delete(fileUri, null, null)
+
+    if (rowsDeleted > 0) {
+        Log.e("FILEdelete", "File deleted successfully")
+    } else {
+        Log.e("FILEdelete", "File deletion failed or file not found")
+    }
+
+
     val contentValues = ContentValues().apply {
-        put(MediaStore.Images.Media.DISPLAY_NAME, "Processed_${System.currentTimeMillis()}.jpg") // 设置文件名
+        put(
+            MediaStore.Images.Media.DISPLAY_NAME,
+            "Processed_${System.currentTimeMillis()}.jpg"
+        ) // 设置文件名
         put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg") // 设置文件类型
-        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES+"/quickCheck") // 设置保存路径
+        put(
+            MediaStore.Images.Media.RELATIVE_PATH,
+            Environment.DIRECTORY_PICTURES + "/quickCheck"
+        ) // 设置保存路径
     }
 
     val uri =
-        context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues) // 插入媒体库
+        context.contentResolver.insert(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            contentValues
+        ) // 插入媒体库
     uri?.let {
         context.contentResolver.openOutputStream(it)?.use { outputStream -> // 打开输出流
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream) // 保存图像为JPEG
         }
     }
 }
+
 interface ApiService {
     @Multipart
     @POST("upload") // 服务器上传的 URL 路径
     suspend fun uploadImage(
         @Part image: MultipartBody.Part
     ): Response<ResponseBody>
+}
+// 处理并上传图像
+private fun processAndUploadImage(uri: Uri, context: Context) {
+    val bitmap = uriToBitmap(uri, context) ?: return // 获取Bitmap
+    // 使用YOLO处理图像
+    val result = Yolo(context).processImage(bitmap)
+    val processedBitmap = result.first
+    val hasPerson = result.second
+
+    saveImageToGallery(processedBitmap, context,uri) // 保存处理后的图片
+//    uploadToServer(uri, context) // 上传图片到服务器
 }
 
 // 上传到服务器

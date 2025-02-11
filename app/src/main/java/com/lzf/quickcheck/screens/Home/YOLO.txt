@@ -38,3 +38,26 @@ class Yolo {
         return image
     }
 }
+
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.util.Log
+import com.lzf.quickcheck.screens.home.YoloV5Ncnn
+import java.io.FileNotFoundException
+import java.lang.String
+
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.util.Log
+import com.lzf.quickcheck.screens.home.YoloV5Ncnn
+import java.io.FileNotFoundException
+import java.lang.String

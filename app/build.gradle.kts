@@ -41,7 +41,14 @@ android {
     }
     buildFeatures.compose = true
     composeOptions.kotlinCompilerExtensionVersion = "1.5.0"
+    externalNativeBuild {
+        cmake {
+            version = "3.10.2"
+            path = file("src/main/jni/CMakeLists.txt")
+        }
+    }
 }
+
 
 dependencies {
 
