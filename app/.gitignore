@@ -1,2 +1,4 @@
 /build
 /release
+/.cxx
+/src/main/jni/ncnn-20241226-android-vulkan

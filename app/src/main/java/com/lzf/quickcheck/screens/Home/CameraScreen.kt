@@ -8,12 +8,20 @@ import android.content.Context // 引入Context类，用于获取应用上下文
 import android.graphics.Bitmap // 引入Bitmap类，表示图片数据
 import android.graphics.BitmapFactory
 import android.net.Uri // 引入Uri类，表示图片文件的URI
+import android.os.Build
 import android.os.Environment // 引入Environment类，获取设备的公共存储路径
 import android.provider.MediaStore // 引入MediaStore类，用于访问媒体存储
 import android.util.Log // 引入Log类，用于日志记录
 import android.widget.Toast // 引入Toast类，用于弹出提示信息
+import androidx.annotation.RequiresApi
 import androidx.camera.core.* // 引入CameraX相关类，用于摄像头操作
 import androidx.camera.lifecycle.ProcessCameraProvider // 引入ProcessCameraProvider类，管理CameraX生命周期
+import androidx.camera.video.FallbackStrategy
+import androidx.camera.video.Quality
+import androidx.camera.video.QualitySelector
+import androidx.camera.video.Recorder
+import androidx.camera.video.VideoCapture
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.* // 引入布局类，提供行、列、框等布局组件
 import androidx.compose.material.* // 引入Jetpack Compose的Material UI组件
 import androidx.compose.material.icons.Icons // 引入Material Icons
@@ -31,6 +39,7 @@ import androidx.compose.ui.unit.dp // 引入dp单位，设置组件大小
 import androidx.compose.ui.viewinterop.AndroidView // 引入AndroidView，集成Android视图组件
 import androidx.core.content.ContextCompat // 引入ContextCompat类，提供兼容性支持
 import androidx.lifecycle.LifecycleOwner // 引入LifecycleOwner接口，管理组件生命周期
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController // 引入NavController，管理页面导航
 import kotlinx.coroutines.* // 引入协程库，进行异步处理
 import okhttp3.MediaType
@@ -54,7 +63,61 @@ import java.text.SimpleDateFormat // 引入日期格式化类
 import java.util.* // 引入日期和时间相关类
 import java.util.concurrent.ExecutorService // 引入ExecutorService，用于线程池管理
 import java.util.concurrent.Executors // 引入Executors类，用于创建线程池
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
+// 声明一个挂起函数，这个函数在 Context 上扩展，返回一个 ProcessCameraProvider 对象
+@RequiresApi(Build.VERSION_CODES.P)
+suspend fun Context.getCameraProvider(): ProcessCameraProvider = suspendCoroutine { continuation ->
+
+    // 获取 ProcessCameraProvider 的实例，返回一个 Future 对象
+    ProcessCameraProvider.getInstance(this).also { future ->
+
+        // 为 future 对象添加监听器，当 future 完成时会调用传入的代码块
+        future.addListener(
+            {
+                // 当 future 获取到结果时，调用 continuation.resume() 恢复挂起的协程，并返回获取到的结果
+                continuation.resume(future.get())
+            },
+            mainExecutor // 使用主线程的 Executor 来执行这个回调
+        )
+    }
+}
+
+
+@RequiresApi(Build.VERSION_CODES.P)
+suspend fun Context.createVideoCaptureUseCase(
+    lifecycleOwner: LifecycleOwner,
+    cameraSelector: CameraSelector,
+    previewView: PreviewView
+): VideoCapture<Recorder> {
+    val preview = Preview.Builder()
+        .build()
+        .apply { setSurfaceProvider(previewView.surfaceProvider) }
+
+    val qualitySelector = QualitySelector.from(
+        Quality.FHD,
+        FallbackStrategy.lowerQualityOrHigherThan(Quality.FHD)
+    )
+    val recorder = Recorder.Builder()
+        .setExecutor(mainExecutor)
+        .setQualitySelector(qualitySelector)
+        .build()
+    val videoCapture = VideoCapture.withOutput(recorder)
+
+    val cameraProvider = getCameraProvider()
+    cameraProvider.unbindAll()
+    cameraProvider.bindToLifecycle(
+        lifecycleOwner,
+        cameraSelector,
+        preview,
+        videoCapture
+    )
+
+    return videoCapture
+}
+
+@RequiresApi(Build.VERSION_CODES.P)
 @Composable
 fun CameraScreen(navController: NavController) { // Composable函数，表示一个界面
     val context = LocalContext.current // 获取当前的上下文
@@ -62,66 +125,30 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
     val cameraProviderFuture =
         remember { ProcessCameraProvider.getInstance(context) } // 初始化CameraX提供者
     val executor = remember { Executors.newSingleThreadExecutor() } // 创建单线程执行器
-    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) } // 定义ImageCapture对象用于拍照
+    val imageCapture by remember { mutableStateOf<ImageCapture?>(null) } // 定义ImageCapture对象用于拍照
     var isAutoCapture by remember { mutableStateOf(false) } // 自动拍照开关
     val coroutineScope = rememberCoroutineScope() // 创建协程作用域
-    var isFrontCamera by remember { mutableStateOf(true) } // Track the selected camera
-    // 使用 DisposableEffect 释放资源
-    DisposableEffect(lifecycleOwner) {
-        onDispose {
-            // 销毁相机资源
-            cameraProviderFuture.get().unbindAll() // 释放相机资源
-        }
+    val videoCapture: MutableState<VideoCapture<Recorder>?> = remember { mutableStateOf(null) }
+    val previewView: PreviewView = remember { PreviewView(context) }
+    val cameraSelector: MutableState<CameraSelector> = remember {
+        mutableStateOf(CameraSelector.DEFAULT_BACK_CAMERA)
+    }
+    LaunchedEffect(previewView) {
+        videoCapture.value = context.createVideoCaptureUseCase(
+            lifecycleOwner = lifecycleOwner,
+            cameraSelector = cameraSelector.value,
+            previewView = previewView
+        )
     }
 
-    LaunchedEffect(isAutoCapture) {
-        // 如果开启了自动拍照，每秒拍摄一张
-        while (isAutoCapture) {
-            takePhoto(imageCapture, context, executor) // 调用拍照函数
-            delay(1000)  // 每秒拍摄一张
-        }
-    }
-//    var cameraSelector by remember { mutableStateOf(if (isFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA) }
-    Box(modifier = Modifier.fillMaxSize()) {
-        val cameraSelectorState = remember { mutableStateOf(if (isFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA) }
-// 创建一个填满屏幕的容器
+ Box(modifier = Modifier.fillMaxSize()) {
+      // 创建一个填满屏幕的容器
         AndroidView(
             modifier = Modifier.fillMaxSize(), // 填满父容器
-            factory = { ctx ->
-                val previewView = androidx.camera.view.PreviewView(ctx) // 创建一个预览视图
-                val cameraProvider = cameraProviderFuture.get() // 获取CameraProvider实例
-                val preview = Preview.Builder().build().also { // 设置预览配置
-                    it.setSurfaceProvider(previewView.surfaceProvider) // 将预览画面绑定到预览视图
-                }
-
-                imageCapture = ImageCapture.Builder() // 初始化ImageCapture配置
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY) // 设置拍照模式
-                    .build()
-                // 根据isFrontCamera选择摄像头
-               val cameraSelector =cameraSelectorState.value
-
-                cameraProvider.unbindAll() // 解绑所有已绑定的用例
-                cameraProvider.bindToLifecycle( // 绑定生命周期
-                    lifecycleOwner, cameraSelector, preview, imageCapture
-                )
-
+            factory = {
                 previewView // 返回预览视图
-            },
-                    update = { // This block is triggered when `isFrontCamera` changes
-                // Update the camera selector based on isFrontCamera
-                        Log.e("switch", cameraSelectorState.value.toString())
-                cameraSelectorState.value = if (isFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
             }
         )
-// 监听isFrontCamera变化并刷新摄像头
-//        LaunchedEffect(isFrontCamera) {
-//            // 根据isFrontCamera改变时刷新摄像头
-//            cameraSelector = if (isFrontCamera) {
-//                CameraSelector.DEFAULT_FRONT_CAMERA
-//            } else {
-//                CameraSelector.DEFAULT_BACK_CAMERA
-//            }
-//        }
         // 拍照按钮
         Column(
             modifier = Modifier
@@ -150,7 +177,6 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
                         contentDescription = "Auto Capture" // 图标的描述
                     )
                 }
-
                 // 手动拍照按钮
                 FloatingActionButton(
                     onClick = {
@@ -164,20 +190,21 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
                         contentDescription = "Capture" // 图标的描述
                     )
                 }
-
                 // 切换摄像头按钮
                 FloatingActionButton(
                     onClick = {
-                        isFrontCamera = !isFrontCamera
-//                        cameraSelector = if (isFrontCamera) {
-//                            CameraSelector.DEFAULT_FRONT_CAMERA
-//                        } else {
-//                            CameraSelector.DEFAULT_BACK_CAMERA
-//                        }
+                        cameraSelector.value =
+                            if (cameraSelector.value == CameraSelector.DEFAULT_BACK_CAMERA) CameraSelector.DEFAULT_FRONT_CAMERA
+                            else CameraSelector.DEFAULT_BACK_CAMERA
+                        lifecycleOwner.lifecycleScope.launch {
+                            videoCapture.value = context.createVideoCaptureUseCase(
+                                lifecycleOwner = lifecycleOwner,
+                                cameraSelector = cameraSelector.value,
+                                previewView = previewView
+                            )
+                        }
                         Toast.makeText(context, "Switch photo...", Toast.LENGTH_SHORT)
-                            .show() // 弹出拍照提示
-                        Log.e("cacaca",isFrontCamera.toString())
-//                        Log.e("whichcacaca",cameraSelector.toString())
+                            .show() // 弹出切换提示
                     }
                 ) {
                     Icon(
@@ -188,8 +215,21 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
             }
         }
     }
+    // 使用 DisposableEffect 释放资源
+    DisposableEffect(lifecycleOwner) {
+        onDispose {
+            // 销毁相机资源
+            cameraProviderFuture.get().unbindAll() // 释放相机资源
+        }
+    }
+    LaunchedEffect(isAutoCapture) {
+        // 如果开启了自动拍照，每秒拍摄一张
+        while (isAutoCapture) {
+            takePhoto(imageCapture, context, executor) // 调用拍照函数
+            delay(1000)  // 每秒拍摄一张
+        }
+    }
 }
-
 // 拍照并处理图像
 private fun takePhoto(
     imageCapture: ImageCapture?, // 图像捕捉对象
@@ -212,7 +252,6 @@ private fun takePhoto(
             )
         }
     ).build()
-
     // 拍照并保存
     imageCapture?.takePicture(outputOptions, executor, object : ImageCapture.OnImageSavedCallback {
         override fun onImageSaved(output: ImageCapture.OutputFileResults) {
@@ -231,7 +270,6 @@ private fun takePhoto(
                 saveImageToGallery(processedBitmap, context,uri)
             }
         }
-
         override fun onError(exception: ImageCaptureException) {
             Log.e("CameraScreen", "Photo capture failed: ${exception.message}") // 错误日志
         }
@@ -240,11 +278,13 @@ private fun takePhoto(
 fun saveProcessedImage(bitmap: Bitmap, originalUri: Uri) {
     try {
         // 获取原图片的文件路径
-        val file = File(originalUri.path)
+        val file = originalUri.path?.let { File(it) }
 
         // 如果文件已经存在，先删除它
-        if (file.exists()) {
-            file.delete()
+        if (file != null) {
+            if (file.exists()) {
+                file.delete()
+            }
         }
 
         // 创建一个新的文件并使用 FileOutputStream 写入处理后的图像
