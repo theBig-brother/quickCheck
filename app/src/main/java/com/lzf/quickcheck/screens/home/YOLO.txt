@@ -61,3 +61,11 @@ import android.util.Log
 import com.lzf.quickcheck.screens.home.YoloV5Ncnn
 import java.io.FileNotFoundException
 import java.lang.String
+
+
+//    val appContext = context.applicationContext
+//    val assetManager = appContext.assets // 获取 AssetManager
+//    val inputStream = assetManager.open("example.jpg") // 打开 assets 中的图片
+//    var bitmap = BitmapFactory.decodeStream(inputStream) // 将 InputStream 转换为 Bitmap
+//    bitmap=processBitmap(bitmap,true)
+//    imageView.setImageBitmap(bitmap) // 设置给 ImageView

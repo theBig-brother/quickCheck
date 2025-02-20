@@ -13,6 +13,8 @@ constraintlayout = "2.1.4"
 navigationCompose = "2.7.5"
 uiToolingPreviewAndroid = "1.7.7"
 firebaseAppdistributionGradle = "5.1.1"
+core = "1.47.0"
+roomKtx = "2.6.1"
 
 [libraries]
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "cameraView" }
@@ -27,6 +29,8 @@ androidx-activity = { group = "androidx.activity", name = "activity", version.re
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 androidx-ui-tooling-preview-android = { group = "androidx.compose.ui", name = "ui-tooling-preview-android", version.ref = "uiToolingPreviewAndroid" }
 firebase-appdistribution-gradle = { group = "com.google.firebase", name = "firebase-appdistribution-gradle", version.ref = "firebaseAppdistributionGradle" }
+core = { group = "com.google.ar", name = "core", version.ref = "core" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

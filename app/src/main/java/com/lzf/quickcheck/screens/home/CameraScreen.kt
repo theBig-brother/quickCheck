@@ -60,7 +60,10 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
     val cameraProviderFuture =
         remember { ProcessCameraProvider.getInstance(context) } // 初始化CameraX提供者
     val executor = remember { Executors.newSingleThreadExecutor() } // 创建单线程执行器
-    val imageCapture by remember { mutableStateOf<ImageCapture?>(null) } // 定义ImageCapture对象用于拍照
+//    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) } // 定义ImageCapture对象用于拍照
+    var imageCapture=  ImageCapture.Builder()
+        .setTargetRotation(context.resources.configuration.orientation) // 设置目标方向
+        .build()
     var isAutoCapture by remember { mutableStateOf(false) } // 自动拍照开关
     val coroutineScope = rememberCoroutineScope() // 创建协程作用域
     val videoCapture: MutableState<VideoCapture<Recorder>?> = remember { mutableStateOf(null) }
@@ -69,11 +72,11 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
         mutableStateOf(CameraSelector.DEFAULT_BACK_CAMERA)
     }
     LaunchedEffect(previewView) {
-        videoCapture.value = context.createVideoCaptureUseCase(
+        imageCapture = context.createImageCaptureUseCase(
             lifecycleOwner = lifecycleOwner,
             cameraSelector = cameraSelector.value,
             previewView = previewView
-        )
+        )!!
     }
 
  Box(modifier = Modifier.fillMaxSize()) {
@@ -132,11 +135,11 @@ fun CameraScreen(navController: NavController) { // Composable函数，表示一
                             if (cameraSelector.value == CameraSelector.DEFAULT_BACK_CAMERA) CameraSelector.DEFAULT_FRONT_CAMERA
                             else CameraSelector.DEFAULT_BACK_CAMERA
                         lifecycleOwner.lifecycleScope.launch {
-                            videoCapture.value = context.createVideoCaptureUseCase(
+                            imageCapture = context.createImageCaptureUseCase(
                                 lifecycleOwner = lifecycleOwner,
                                 cameraSelector = cameraSelector.value,
                                 previewView = previewView
-                            )
+                            )!!
                         }
                         Toast.makeText(context, "Switch photo...", Toast.LENGTH_SHORT)
                             .show() // 弹出切换提示
