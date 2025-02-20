@@ -1,8 +1,6 @@
 package com.lzf.quickcheck.screens.home
 
 import Yolo // 引入Yolo类，用于图像处理
-import android.Manifest // 引入权限声明
-import android.app.VoiceInteractor
 import android.content.ContentValues // 引入用于存储媒体信息的ContentValues
 import android.content.Context // 引入Context类，用于获取应用上下文
 import android.graphics.Bitmap // 引入Bitmap类，表示图片数据
@@ -16,19 +14,14 @@ import android.widget.Toast // 引入Toast类，用于弹出提示信息
 import androidx.annotation.RequiresApi
 import androidx.camera.core.* // 引入CameraX相关类，用于摄像头操作
 import androidx.camera.lifecycle.ProcessCameraProvider // 引入ProcessCameraProvider类，管理CameraX生命周期
-import androidx.camera.video.FallbackStrategy
-import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
 import androidx.camera.video.VideoCapture
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.* // 引入布局类，提供行、列、框等布局组件
-import androidx.compose.material.* // 引入Jetpack Compose的Material UI组件
 import androidx.compose.material.icons.Icons // 引入Material Icons
 import androidx.compose.material.icons.filled.CameraAlt // 引入相机图标
 import androidx.compose.material.icons.filled.CameraRear
 import androidx.compose.material.icons.filled.Videocam // 引入摄像机图标
-import androidx.compose.material.icons.rounded.ShoppingCart // 引入购物车图标
 import androidx.compose.material3.FloatingActionButton // 引入浮动按钮
 import androidx.compose.material3.Icon // 引入Icon类，用于显示图标
 import androidx.compose.runtime.* // 引入Compose的状态管理功能
@@ -37,15 +30,12 @@ import androidx.compose.ui.Modifier // 引入Modifier类，用于修饰UI组件
 import androidx.compose.ui.platform.LocalContext // 引入LocalContext，用于访问应用上下文
 import androidx.compose.ui.unit.dp // 引入dp单位，设置组件大小
 import androidx.compose.ui.viewinterop.AndroidView // 引入AndroidView，集成Android视图组件
-import androidx.core.content.ContextCompat // 引入ContextCompat类，提供兼容性支持
 import androidx.lifecycle.LifecycleOwner // 引入LifecycleOwner接口，管理组件生命周期
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController // 引入NavController，管理页面导航
 import kotlinx.coroutines.* // 引入协程库，进行异步处理
-import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
-import okhttp3.OkHttpClient
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import okio.IOException
@@ -58,64 +48,9 @@ import retrofit2.http.Part
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.io.OutputStream // 引入输出流，用于保存文件
-import java.text.SimpleDateFormat // 引入日期格式化类
-import java.util.* // 引入日期和时间相关类
 import java.util.concurrent.ExecutorService // 引入ExecutorService，用于线程池管理
 import java.util.concurrent.Executors // 引入Executors类，用于创建线程池
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
-// 声明一个挂起函数，这个函数在 Context 上扩展，返回一个 ProcessCameraProvider 对象
-@RequiresApi(Build.VERSION_CODES.P)
-suspend fun Context.getCameraProvider(): ProcessCameraProvider = suspendCoroutine { continuation ->
-
-    // 获取 ProcessCameraProvider 的实例，返回一个 Future 对象
-    ProcessCameraProvider.getInstance(this).also { future ->
-
-        // 为 future 对象添加监听器，当 future 完成时会调用传入的代码块
-        future.addListener(
-            {
-                // 当 future 获取到结果时，调用 continuation.resume() 恢复挂起的协程，并返回获取到的结果
-                continuation.resume(future.get())
-            },
-            mainExecutor // 使用主线程的 Executor 来执行这个回调
-        )
-    }
-}
-
-
-@RequiresApi(Build.VERSION_CODES.P)
-suspend fun Context.createVideoCaptureUseCase(
-    lifecycleOwner: LifecycleOwner,
-    cameraSelector: CameraSelector,
-    previewView: PreviewView
-): VideoCapture<Recorder> {
-    val preview = Preview.Builder()
-        .build()
-        .apply { setSurfaceProvider(previewView.surfaceProvider) }
-
-    val qualitySelector = QualitySelector.from(
-        Quality.FHD,
-        FallbackStrategy.lowerQualityOrHigherThan(Quality.FHD)
-    )
-    val recorder = Recorder.Builder()
-        .setExecutor(mainExecutor)
-        .setQualitySelector(qualitySelector)
-        .build()
-    val videoCapture = VideoCapture.withOutput(recorder)
-
-    val cameraProvider = getCameraProvider()
-    cameraProvider.unbindAll()
-    cameraProvider.bindToLifecycle(
-        lifecycleOwner,
-        cameraSelector,
-        preview,
-        videoCapture
-    )
-
-    return videoCapture
-}
 
 @RequiresApi(Build.VERSION_CODES.P)
 @Composable

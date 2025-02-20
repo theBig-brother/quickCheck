@@ -64,8 +64,9 @@ fun MyApp() {
         "function" to { FunctionScreen(navController) },
         "mine" to { MineScreen() },
         "camera" to { CameraScreen(navController) },
-        "todo" to { ToDoScreen(navController) },
-        "pictures" to { Pictures(navController) }
+        "monitor" to { MonitorScreen(navController) },
+        "pictures" to { Pictures(navController) },
+        "videoPreview" to { VideoPreviewScreen(navController) }
     )
 
     if (showSplash) {

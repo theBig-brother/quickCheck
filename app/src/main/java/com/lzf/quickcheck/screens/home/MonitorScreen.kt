@@ -12,7 +12,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 
 @Composable
-fun ToDoScreen(navController: NavController) {
+fun MonitorScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -28,5 +28,5 @@ fun ToDoScreen(navController: NavController) {
 @Composable
 fun PreviewToDoScreen() {
     val navController = rememberNavController()
-    ToDoScreen(navController)
+    MonitorScreen(navController)
 }

@@ -30,16 +30,25 @@ fun HomeScreen(navController: NavController) {
         ) {
             Text("Camera", style = MaterialTheme.typography.headlineSmall) // 按钮文字
         }
-
-        // ToDo 按钮，点击进入待开发页面
+// videoPreview 按钮，点击进入待开发页面
         Button(
-            onClick = { navController.navigate("todo") }, // 跳转到 ToDo 页面
+            onClick = { navController.navigate("videoPreview") }, // 跳转到 ToDo 页面
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
             elevation = ButtonDefaults.buttonElevation(8.dp)
         ) {
-            Text("ToDo", style = MaterialTheme.typography.headlineSmall) // 按钮文字
+            Text("videoPreview", style = MaterialTheme.typography.headlineSmall) // 按钮文字
+        }
+        // ToDo 按钮，点击进入monitor页面
+        Button(
+            onClick = { navController.navigate("monitor") }, // 跳转到 monitor 页面
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            elevation = ButtonDefaults.buttonElevation(8.dp)
+        ) {
+            Text("monitor", style = MaterialTheme.typography.headlineSmall) // 按钮文字
         }
     }
 }
